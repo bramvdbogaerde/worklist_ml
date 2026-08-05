@@ -116,4 +116,4 @@ if __name__ == "__main__":
     elif args.action == "train":
         train_model(args.lookahead, args.beam, args.train_dir, args.cores, features, args.model_dir, args.data_suffix, k_cfa=args.k)
     elif args.action == "evaluate":
-        evaluate_model(args.lookahead, args.beam, args.test_dir, args.cores, args.model_dir, num_runs=3, data_suffix=args.data_suffix, k_cfa=args.k)
+        evaluate_model(args.lookahead, args.beam, args.test_dir, args.cores, args.model_dir, num_runs=40, data_suffix=args.data_suffix, k_cfa=args.k)
