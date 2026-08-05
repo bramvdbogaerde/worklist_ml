@@ -17,7 +17,7 @@ python scripts/lattice_pipeline.py --action [all|generate|train|evaluate] [OPTIO
 
 ---
 
-Note that when deviating from the default argument values, the argument non-default arguments have to be repeated for each phase.
+Note that when deviating from the default argument values, the non-default arguments have to be repeated for each phase.
 
 ## Phase 1: Data Generation
 
