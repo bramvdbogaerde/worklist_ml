@@ -231,6 +231,7 @@ object MLOracleFinder:
         val modelDir   = if args.length > 0 then args(0) else "../models"
         val testDir    = if args.length > 1 then new File(args(1)) else new File("test/R5RS/gambit")
         val resultFile = if args.length > 2 then new File(args(2)) else new File("evaluation_results.csv")
+        val resultFileDetailed = if args.length > 2 then new File(args(2).stripSuffix(".csv")+"_detailed.csv") else new File("evaluation_results_detailed.csv")
         val lookahead  = if args.length > 3 then args(3) else "unknown"
         val beamWidth  = if args.length > 4 then args(4) else "unknown"
         val numRuns    = if args.length > 5 then args(5).toInt else 1
@@ -241,7 +242,11 @@ object MLOracleFinder:
         val files = Option(testDir.listFiles).getOrElse(Array.empty[File]).filter(_.getName.nn.endsWith(".scm")).sortBy(_.getName.nn)
         
         val writer = new PrintWriter(new BufferedWriter(new FileWriter(resultFile, false)))
+        val writerDetailed = new PrintWriter(new BufferedWriter(new FileWriter(resultFileDetailed, false)))
+
         writer.println("program,lookahead,beam,fifo_steps,ml_steps,ratio,fifo_time_ms,ml_time_ms,overhead_factor")
+        writerDetailed.println("program,n,configuration,steps,time_ns")
+
 
         files.foreach { file =>
             val prog = SchemeParser.parseProgram(Reader.loadFile(file.getPath.nn))
@@ -250,7 +255,7 @@ object MLOracleFinder:
             println(s">>>> Testing FIFO Strategy on ${file.getName.nn} ($numRuns runs) <<<")
             var fifoSteps = 0
             var totalFifoTime = 0.0
-            for _ <- 0 until numRuns do
+            for i <- 0 until numRuns do
                 fifoSteps = 0
                 val fifoAnalysis = new SimpleSchemeModFAnalysis(prog) with SchemeModFKCallSiteSensitivity with SchemeConstantPropagationDomain with SequentialWorklistAlgorithm[SchemeExp] {
                     val k = k_cfa
@@ -263,7 +268,11 @@ object MLOracleFinder:
                 val startFIFO = System.nanoTime()
                 fifoAnalysis.analyze()
                 val endFIFO = System.nanoTime()
-                totalFifoTime += (endFIFO - startFIFO) / 1_000_000.0
+                val elapsedTime = (endFIFO - startFIFO)
+                totalFifoTime += elapsedTime / 1_000_000.0
+                writerDetailed.println(s"${file.getName().nn},$i,fifo,$fifoSteps,$elapsedTime")
+
+            writerDetailed.flush()
             
             val fifoTimeMs = totalFifoTime / numRuns
             println(f"FIFO finished in $fifoSteps steps ($fifoTimeMs%.2f ms avg).")
@@ -272,7 +281,7 @@ object MLOracleFinder:
             println(s">>>> Testing ML on ${file.getName.nn} ($numRuns runs) <<<")
             var steps = 0
             var totalMlTime = 0.0
-            for _ <- 0 until numRuns do
+            for i <- 0 until numRuns do
                 val extractor = new LatticeFeatureBuilder()
                 steps = 0
                 val wl = new MLGuidedWorkList(extractor, scorer, MLConfig(modelDir))
@@ -319,7 +328,11 @@ object MLOracleFinder:
                 val startML = System.nanoTime()
                 analysis.analyze()
                 val endML = System.nanoTime()
-                totalMlTime += (endML - startML) / 1_000_000.0
+                val elapsedTime = endML - startML
+                totalMlTime += elapsedTime / 1_000_000.0
+                writerDetailed.println(s"${file.getName().nn},$i,ml-L$lookahead-B$beamWidth,$steps,$elapsedTime")
+
+            writerDetailed.flush()
             
             val mlTimeMs = totalMlTime / numRuns
             
@@ -340,3 +353,4 @@ object MLOracleFinder:
             writer.flush()
         }
         writer.close()
+        writerDetailed.close()
