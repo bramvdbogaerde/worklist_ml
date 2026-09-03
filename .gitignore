@@ -191,3 +191,4 @@ maf/code/jvm/src/main/scala/maf/cli/runnables/TranspiledFeatureExtractor.scala
 models_old
 data_old
 logs
+.bsp
