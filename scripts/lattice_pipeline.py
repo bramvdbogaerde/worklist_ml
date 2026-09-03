@@ -2,6 +2,7 @@ import subprocess
 import os
 import sys
 import utils
+import shutil
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 DATA_BASE_DIR = os.path.join(PROJECT_ROOT, "data")
@@ -40,11 +41,14 @@ def generate_data(lookahead: int, beam: int, train_dir: str, num_cores: int, dat
     cmd = f'java -jar {jar} {lookahead} {beam} {data_path} {num_cores} {train_dir} {k_cfa}'
     return _run_command(cmd, cwd=MAF_DIR)
 
-def train_model(lookahead: int, beam: int, train_dir: str, num_cores: int, features: list = None, model_dir: str = None, data_suffix: str = "", k_cfa = 0) -> bool:
+def train_model(lookahead: int, beam: int, train_dir: str, num_cores: int, features: list = None, model_dir: str = None, data_suffix: str = "", k_cfa = 0, rename_jar: bool = False) -> bool:
     """Runs Phase 2: Python XGBoost Rank Model Training."""
     exp_name, data_path, model_name, default_model_path = _get_exp_paths(lookahead, beam, k_cfa, data_suffix)
-    
-    actual_model_dir = model_dir if model_dir else MODELS_DIR
+    if not os.path.exists(data_path):
+        print(f"Path to training data does not exist. Tried {data_path}")
+        sys.exit(1)
+
+    actual_model_dir = (model_dir if model_dir else MODELS_DIR) + data_suffix
     print(f"\n{'='*60}\n [PHASE 2] Model Training (Rank): {exp_name}{data_suffix} -> {actual_model_dir}\n{'='*60}")
     
     # Build command
@@ -73,7 +77,13 @@ def train_model(lookahead: int, beam: int, train_dir: str, num_cores: int, featu
 
     # Phase 2c: the transpiled oracle is compiled into the evaluation jar, so it has to
     # be reassembled before it can be used by evaluate_model.
-    return _run_command('sbt --warn mlOracleFinder/buildJar', cwd=MAF_DIR)
+    out = _run_command('sbt --warn mlOracleFinder/buildJar', cwd=MAF_DIR)
+    if rename_jar: 
+        # Bit of a shortcut: if no features are explicitly set then it is assumed 
+        # that alle features are used, if some features are set then the fixed "fast" configuration is assumed.
+        features_name = "all" if features is None else "fast"
+        shutil.move(os.path.join(MAF_DIR, "build", "ml-oracle-finder.jar"), os.path.join(MAF_DIR, "build", f"ml-oracle-finder-l{lookahead}_b{beam}_k{k_cfa}_{features_name}.jar"))
+    return out
 
 def evaluate_model(lookahead: int, beam: int, test_dir: str, num_cores: int, model_dir: str = None, num_runs: int = 1, data_suffix: str = "", k_cfa: int = 0) -> bool:
     """Runs Phase 3: Scala ML Oracle Evaluation."""
@@ -122,6 +132,7 @@ if __name__ == "__main__":
     parser.add_argument("--data-suffix", type=str, default="")
     parser.add_argument("--features", type=str, help="Comma separated features list")
     parser.add_argument("--k", type=int, default=0, help="k-CFA value (default: 0)")
+    parser.add_argument("--rename-jar", type=bool, default=False, help="Whether to key the output JAR with the configuration")
     
     args = parser.parse_args()
     features = args.features.split(",") if args.features else None
@@ -133,7 +144,7 @@ if __name__ == "__main__":
     elif args.action == "generate":
         generate_data(args.lookahead, args.beam, args.train_dir, args.cores, args.data_suffix, args.k)
     elif args.action == "train":
-        train_model(args.lookahead, args.beam, args.train_dir, args.cores, features, args.model_dir, args.data_suffix, k_cfa=args.k)
+        train_model(args.lookahead, args.beam, args.train_dir, args.cores, features, args.model_dir, args.data_suffix, k_cfa=args.k, rename_jar = args.rename_jar)
     elif args.action == "evaluate":
         evaluate_model(args.lookahead, args.beam, args.test_dir, args.cores, args.model_dir, num_runs=3, data_suffix=args.data_suffix, k_cfa=args.k)
     elif args.action == "generate-random":

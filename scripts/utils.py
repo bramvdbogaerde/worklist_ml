@@ -5,7 +5,7 @@ script_path = Path(__file__).resolve().parent
 # Mirrors the jar names generated from the `maf/build.sbt`, `assembleAll` task.
 JAR_NAMES = [
         "oracle-lattice-generator.jar",
-        "ml-oracle-finder.jar",
+        # "ml-oracle-finder.jar",
         "replay-lattice-generator.jar"
 ]
 
