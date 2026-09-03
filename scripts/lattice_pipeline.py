@@ -109,7 +109,7 @@ def generate_random(test_dir: str, num_runs: int = 100, k_cfa: int = 0, num_core
     
     # jar args: testDir resultFile numRuns k_cfa numCores
     cmd = f'java -jar {jar} {test_dir} {result_file} {num_runs} {k_cfa} {num_cores}'
-    return _run_command(cmd, cwd=MAF_DIR)
+    return _run_command(cmd, cwd=os.path.join(MAF_DIR, "../"))
 
 def run_all(lookahead: int, beam: int, train_dir: str, test_dir: str, num_cores: int, features: list = None, model_dir: str = None, data_suffix: str = "", k_cfa: int = 0) -> bool:
     """Runs the full pipeline sequentially."""
