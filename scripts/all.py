@@ -336,7 +336,7 @@ def training_phase(name: str, parameters: Sequence[str], model_dir: Path,
     """
     # Run the training process, generate the Scala transpilation
     # of the resulting XGSBoosted machine, and compile.
-    model_dir.mkdir(parents=True, exist_ok=True)
+    # model_dir.mkdir(parents=True, exist_ok=True)
     command = pipeline_command("train", parameters, model_dir, cores=MAX_CORES)
     return run_command(command, name, "train", log_dir)
 
@@ -392,6 +392,7 @@ def main():
                         help="Continue with the next configuration when one fails")
     parser.add_argument("--dry-run", action="store_true",
                         help="Only print the configurations that would be run")
+    parser.add_argument("--hpc", action="store_true", help="Generate commands as jobs")
     args = parser.parse_args()
 
     combinations = cartesian(parameters)
@@ -418,6 +419,8 @@ def main():
                 continue
 
             model_dir = args.models_dir / name
+            if args.hpc: 
+                continue
             if not run_phase(name, cli_params, model_dir, args.log_dir, core):
                 failed.append(name)
                 if not args.keep_going:
