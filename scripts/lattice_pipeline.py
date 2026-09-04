@@ -55,7 +55,7 @@ def _oracle_jar_name(lookahead: int, beam: int, k_cfa: int, features: list = Non
     if not rename_jar:
         return "ml-oracle-finder.jar"
     features_name = "all" if features is None else "fast"
-    return f"ml-oracle-finder-l{lookahead}_b{beam}_k{k_cfa}_{features_name}.jar"
+    return f"ml-oracle-finder-lattice_l{lookahead}_b{beam}_k{k_cfa}_{features_name}.jar"
 
 def train_model(lookahead: int, beam: int, train_dir: str, num_cores: int, features: list = None, model_dir: str = None, data_suffix: str = "", k_cfa = 0, rename_jar: bool = False) -> bool:
     """Runs Phase 2: Python XGBoost Rank Model Training."""
