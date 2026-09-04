@@ -41,6 +41,22 @@ def generate_data(lookahead: int, beam: int, train_dir: str, num_cores: int, dat
     cmd = f'java -jar {jar} {lookahead} {beam} {data_path} {num_cores} {train_dir} {k_cfa}'
     return _run_command(cmd, cwd=MAF_DIR)
 
+def _oracle_jar_name(lookahead: int, beam: int, k_cfa: int, features: list = None, rename_jar: bool = False) -> str:
+    """
+    Returns the name of the evaluation jar for the given configuration.
+
+    When `rename_jar` is set, `train_model` keys the jar with the configuration
+    so that several of them can live next to each other; `evaluate_model` has to
+    look up the very same name to run the oracle it just built.
+
+    Bit of a shortcut: if no features are explicitly set then it is assumed
+    that alle features are used, if some features are set then the fixed "fast" configuration is assumed.
+    """
+    if not rename_jar:
+        return "ml-oracle-finder.jar"
+    features_name = "all" if features is None else "fast"
+    return f"ml-oracle-finder-l{lookahead}_b{beam}_k{k_cfa}_{features_name}.jar"
+
 def train_model(lookahead: int, beam: int, train_dir: str, num_cores: int, features: list = None, model_dir: str = None, data_suffix: str = "", k_cfa = 0, rename_jar: bool = False) -> bool:
     """Runs Phase 2: Python XGBoost Rank Model Training."""
     exp_name, data_path, model_name, default_model_path = _get_exp_paths(lookahead, beam, k_cfa, data_suffix)
@@ -78,14 +94,12 @@ def train_model(lookahead: int, beam: int, train_dir: str, num_cores: int, featu
     # Phase 2c: the transpiled oracle is compiled into the evaluation jar, so it has to
     # be reassembled before it can be used by evaluate_model.
     out = _run_command('sbt --warn mlOracleFinder/buildJar', cwd=MAF_DIR)
-    if rename_jar: 
-        # Bit of a shortcut: if no features are explicitly set then it is assumed 
-        # that alle features are used, if some features are set then the fixed "fast" configuration is assumed.
-        features_name = "all" if features is None else "fast"
-        shutil.move(os.path.join(MAF_DIR, "build", "ml-oracle-finder.jar"), os.path.join(MAF_DIR, "build", f"ml-oracle-finder-l{lookahead}_b{beam}_k{k_cfa}_{features_name}.jar"))
+    if rename_jar:
+        jar_name = _oracle_jar_name(lookahead, beam, k_cfa, features, rename_jar)
+        shutil.move(os.path.join(MAF_DIR, "build", "ml-oracle-finder.jar"), os.path.join(MAF_DIR, "build", jar_name))
     return out
 
-def evaluate_model(lookahead: int, beam: int, test_dir: str, num_cores: int, model_dir: str = None, num_runs: int = 1, data_suffix: str = "", k_cfa: int = 0) -> bool:
+def evaluate_model(lookahead: int, beam: int, test_dir: str, num_cores: int, model_dir: str = None, num_runs: int = 1, data_suffix: str = "", k_cfa: int = 0, features: list = None, rename_jar: bool = False) -> bool:
     """Runs Phase 3: Scala ML Oracle Evaluation."""
     exp_name, data_path, _, default_model_path = _get_exp_paths(lookahead, beam, k_cfa, data_suffix)
     
@@ -96,7 +110,10 @@ def evaluate_model(lookahead: int, beam: int, test_dir: str, num_cores: int, mod
     results_csv = os.path.join(actual_model_dir, "evaluation_results.csv")
     
     # jar args: modelDir testDir resultFile lookahead beam numRuns k_cfa
-    jar = utils.path_to_jar("ml-oracle-finder.jar")
+    jar = utils.path_to_jar(_oracle_jar_name(lookahead, beam, k_cfa, features, rename_jar))
+    if not jar.exists():
+        print(f"Evaluation jar does not exist, run the training phase first. Tried {jar}")
+        return False
     cmd = f'java -jar {jar} {actual_model_dir} {test_dir} {results_csv} {lookahead} {beam} {num_runs} {k_cfa}'
     return _run_command(cmd, cwd=MAF_DIR)
 
@@ -111,11 +128,11 @@ def generate_random(test_dir: str, num_runs: int = 100, k_cfa: int = 0, num_core
     cmd = f'java -jar {jar} {test_dir} {result_file} {num_runs} {k_cfa} {num_cores}'
     return _run_command(cmd, cwd=os.path.join(MAF_DIR, "../"))
 
-def run_all(lookahead: int, beam: int, train_dir: str, test_dir: str, num_cores: int, features: list = None, model_dir: str = None, data_suffix: str = "", k_cfa: int = 0) -> bool:
+def run_all(lookahead: int, beam: int, train_dir: str, test_dir: str, num_cores: int, features: list = None, model_dir: str = None, data_suffix: str = "", k_cfa: int = 0, rename_jar: bool = False) -> bool:
     """Runs the full pipeline sequentially."""
     if generate_data(lookahead, beam, train_dir, num_cores, data_suffix, k_cfa):
-        if train_model(lookahead, beam, train_dir, num_cores, features, model_dir, data_suffix, k_cfa = k_cfa):
-            return evaluate_model(lookahead, beam, test_dir, num_cores, model_dir, num_runs=1, data_suffix=data_suffix, k_cfa=k_cfa)
+        if train_model(lookahead, beam, train_dir, num_cores, features, model_dir, data_suffix, k_cfa = k_cfa, rename_jar = rename_jar):
+            return evaluate_model(lookahead, beam, test_dir, num_cores, model_dir, num_runs=1, data_suffix=data_suffix, k_cfa=k_cfa, features=features, rename_jar=rename_jar)
     return False
 
 if __name__ == "__main__":
@@ -140,12 +157,12 @@ if __name__ == "__main__":
     utils.assert_all_jars_exist()
     
     if args.action == "all":
-        run_all(args.lookahead, args.beam, args.train_dir, args.test_dir, args.cores, features, args.model_dir, args.data_suffix, args.k)
+        run_all(args.lookahead, args.beam, args.train_dir, args.test_dir, args.cores, features, args.model_dir, args.data_suffix, args.k, rename_jar = args.rename_jar)
     elif args.action == "generate":
         generate_data(args.lookahead, args.beam, args.train_dir, args.cores, args.data_suffix, args.k)
     elif args.action == "train":
         train_model(args.lookahead, args.beam, args.train_dir, args.cores, features, args.model_dir, args.data_suffix, k_cfa=args.k, rename_jar = args.rename_jar)
     elif args.action == "evaluate":
-        evaluate_model(args.lookahead, args.beam, args.test_dir, args.cores, args.model_dir, num_runs=3, data_suffix=args.data_suffix, k_cfa=args.k)
+        evaluate_model(args.lookahead, args.beam, args.test_dir, args.cores, args.model_dir, num_runs=1, data_suffix=args.data_suffix, k_cfa=args.k, features=features, rename_jar=args.rename_jar)
     elif args.action == "generate-random":
         generate_random(args.test_dir, args.num_runs, args.k, args.cores, data_suffix=args.data_suffix)
