@@ -23,6 +23,6 @@ def job_template(action, val_dir = None, extra_args = (), cores = 32, **paramete
 #SBATCH --cpus-per-task={cores}
 #SBATCH --time=48:00:00
 
-# module load Gradle/8.14.3-Java-21
+module load Gradle/8.14.3-Java-21
 {command}
     """

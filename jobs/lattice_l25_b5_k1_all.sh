@@ -2,6 +2,6 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --time=48:00:00
 
-# module load Gradle/8.14.3-Java-21
+module load Gradle/8.14.3-Java-21
 python3 scripts/lattice_pipeline.py --action evaluate --cores 1 --lookahead 25 --beam 5 --k 1 --data-suffix _all --model-dir models/lattice_l25_b5_k1_all --rename-jar True
     
