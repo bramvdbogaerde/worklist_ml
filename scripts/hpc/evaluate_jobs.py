@@ -47,7 +47,10 @@ for config in configurations:
     for model_variant in ["fast", "all"]: 
         jobname = f"lattice_l{config['l']}_b{config['b']}_k{config['k']}_{model_variant}_ml"
         model_dir = f"lattice_l{config['l']}_b{config['b']}_k{config['k']}_{model_variant}"
-        job = utils.job_template("evaluate", None, data_suffix = f"_{model_variant}", k=config['k'], l=config['l'], b=config['b'], strategy="ML", model_dir="../models/"+model_dir, rename_jar=True)
+        if model_variant == "fast":
+            job = utils.job_template("evaluate", None, data_suffix = f"_{model_variant}", k=config['k'], l=config['l'], b=config['b'], strategy="ML", model_dir="../models/"+model_dir, rename_jar=True, features="fast")
+        else: 
+            job = utils.job_template("evaluate", None, data_suffix = f"_{model_variant}", k=config['k'], l=config['l'], b=config['b'], strategy="ML", model_dir="../models/"+model_dir, rename_jar=True)
 
         print(f"[*] Writing job {jobname}")
         with open(JOB_DIR / (jobname+".sh"), "w") as f: 
