@@ -36,7 +36,7 @@ for config in configurations:
     # Generate a FIFO job for this configuration
     jobname = f"lattice_l{config['l']}_b{config['b']}_k{config['k']}_fifo"
     model_dir = f"lattice_l{config['l']}_b{config['b']}_k{config['k']}_all"
-    job = utils.job_template("evaluate", None, data_suffix = f"_all", k=config['k'], l=config['l'], b=config['b'], strategy="fifo", model_dir="../models/"+model_dir)
+    job = utils.job_template("evaluate", None, data_suffix = f"_all", k=config['k'], l=config['l'], b=config['b'], strategy="fifo", model_dir="../models/"+model_dir, rename_jar=True)
 
     print(f"[*] Writing job {jobname}")
     with open(JOB_DIR / (jobname+".sh"), "w") as f: 
@@ -47,7 +47,7 @@ for config in configurations:
     for model_variant in ["fast", "all"]: 
         jobname = f"lattice_l{config['l']}_b{config['b']}_k{config['k']}_{model_variant}_ml"
         model_dir = f"lattice_l{config['l']}_b{config['b']}_k{config['k']}_{model_variant}"
-        job = utils.job_template("evaluate", None, data_suffix = f"_{model_variant}", k=config['k'], l=config['l'], b=config['b'], strategy="ML", model_dir="../models/"+model_dir)
+        job = utils.job_template("evaluate", None, data_suffix = f"_{model_variant}", k=config['k'], l=config['l'], b=config['b'], strategy="ML", model_dir="../models/"+model_dir, rename_jar=True)
 
         print(f"[*] Writing job {jobname}")
         with open(JOB_DIR / (jobname+".sh"), "w") as f: 
