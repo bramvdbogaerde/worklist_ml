@@ -332,7 +332,7 @@ def data_collection_phase(name: str, parameters: Sequence[str], model_dir: Path,
 
 
 def training_phase(name: str, parameters: Sequence[str], model_dir: Path,
-                   log_dir: Path, core: int) -> bool:
+                   log_dir: Path, _: int) -> bool:
     """
     Runs the training commands with the given list of parameters
     """
@@ -340,6 +340,17 @@ def training_phase(name: str, parameters: Sequence[str], model_dir: Path,
     # of the resulting XGSBoosted machine, and compile.
     # model_dir.mkdir(parents=True, exist_ok=True)
     command = pipeline_command("train", parameters, model_dir, cores=MAX_CORES)
+    return run_command(command, name, "train", log_dir)
+
+def transpile_phase(name: str, parameters: List[str], model_dir: Path,
+                   log_dir: Path, _: int) -> bool:
+    """
+    Runs the training commands with the given list of parameters
+    """
+    # Run the training process, generate the Scala transpilation
+    # of the resulting XGSBoosted machine, and compile.
+    # model_dir.mkdir(parents=True, exist_ok=True)
+    command = pipeline_command("train", parameters + ["--skip-training", "True"], model_dir, cores=MAX_CORES)
     return run_command(command, name, "train", log_dir)
 
 
@@ -407,6 +418,7 @@ PHASES = {
     "generate": data_collection_phase,
     "train": training_phase,
     "evaluate": benchmark_phase,
+    "transpile": transpile_phase,
     "all": all_phases,
 }
 
