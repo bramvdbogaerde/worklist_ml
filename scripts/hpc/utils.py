@@ -20,8 +20,7 @@ def job_template(action, val_dir = None, extra_args = (), cores = 32, **paramete
         command += " " + " ".join(map(str, extra_args))
 
     return f"""#!/bin/bash
-#SBATCH --cpus-per-task={cores}
-#SBATCH --time=48:00:00
+#SBATCH --exclusive
 
 # module load Gradle/8.14.3-Java-21
 {command}
