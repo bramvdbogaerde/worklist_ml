@@ -102,7 +102,7 @@ def train_model(lookahead: int, beam: int, train_dir: str, num_cores: int, featu
         shutil.move(os.path.join(MAF_DIR, "build", "ml-oracle-finder.jar"), os.path.join(MAF_DIR, "build", jar_name))
     return out
 
-def evaluate_model(lookahead: int, beam: int, test_dir: str, num_cores: int, model_dir: str = None, num_runs: int = 1, data_suffix: str = "", k_cfa: int = 0, features: list = None, rename_jar: bool = False) -> bool:
+def evaluate_model(lookahead: int, beam: int, test_dir: str, num_cores: int, model_dir: str = None, num_runs: int = 1, data_suffix: str = "", k_cfa: int = 0, features: list = None, rename_jar: bool = False, strategy = None) -> bool:
     """Runs Phase 3: Scala ML Oracle Evaluation."""
     exp_name, data_path, _, default_model_path = _get_exp_paths(lookahead, beam, k_cfa, data_suffix)
     
@@ -117,7 +117,9 @@ def evaluate_model(lookahead: int, beam: int, test_dir: str, num_cores: int, mod
     if not jar.exists():
         print(f"Evaluation jar does not exist, run the training phase first. Tried {jar}")
         return False
-    cmd = f'java -jar {jar} {actual_model_dir} {test_dir} {results_csv} {lookahead} {beam} {num_runs} {k_cfa}'
+
+    strategy_str = strategy if strategy is not None else ""
+    cmd = f'java -jar {jar} {actual_model_dir} {test_dir} {results_csv} {lookahead} {beam} {num_runs} {k_cfa} {strategy_str}'
     return _run_command(cmd, cwd=MAF_DIR)
 
 def generate_random(test_dir: str, num_runs: int = 100, k_cfa: int = 0, num_cores: int = 10, data_suffix = "") -> bool:
@@ -154,6 +156,7 @@ if __name__ == "__main__":
     parser.add_argument("--k", type=int, default=0, help="k-CFA value (default: 0)")
     parser.add_argument("--rename-jar", type=bool, default=False, help="Whether to key the output JAR with the configuration")
     parser.add_argument("--skip-training", type=bool, default=False, help="Whether to skip ahead to transpilation in the training phase")
+    parser.add_argument("--strategy", type=str, default=None, help="The strategy to evaluate (FIFO or ML)")
     
     args = parser.parse_args()
     features = args.features.split(",") if args.features else None
@@ -167,6 +170,6 @@ if __name__ == "__main__":
     elif args.action == "train":
         train_model(args.lookahead, args.beam, args.train_dir, args.cores, features, args.model_dir, args.data_suffix, k_cfa=args.k, rename_jar = args.rename_jar, skip_training=args.skip_training)
     elif args.action == "evaluate":
-        evaluate_model(args.lookahead, args.beam, args.test_dir, args.cores, args.model_dir, num_runs=1, data_suffix=args.data_suffix, k_cfa=args.k, features=features, rename_jar=args.rename_jar)
+        evaluate_model(args.lookahead, args.beam, args.test_dir, args.cores, args.model_dir, num_runs=1, data_suffix=args.data_suffix, k_cfa=args.k, features=features, rename_jar=args.rename_jar, strategy=args.strategy)
     elif args.action == "generate-random":
         generate_random(args.test_dir, args.num_runs, args.k, args.cores, data_suffix=args.data_suffix)

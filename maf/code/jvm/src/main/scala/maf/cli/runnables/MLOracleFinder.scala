@@ -230,12 +230,15 @@ object MLOracleFinder:
     def main(args: Array[String]): Unit =
         val modelDir   = if args.length > 0 then args(0) else "../models"
         val testDir    = if args.length > 1 then new File(args(1)) else new File("test/R5RS/gambit")
-        val resultFile = if args.length > 2 then new File(args(2)) else new File("evaluation_results.csv")
-        val resultFileDetailed = if args.length > 2 then new File(args(2).stripSuffix(".csv")+"_detailed.csv") else new File("evaluation_results_detailed.csv")
+        val variant    = if args.length > 7 then Some(args(7)) else None
+        val variantName = variant.getOrElse("")
+        val resultFile = if args.length > 2 then new File(args(2)) else new File(s"evaluation_results_${variantName}.csv")
+        val resultFileDetailed = if args.length > 2 then new File(args(2).stripSuffix(".csv")+s"_detailed_${variantName}.csv") else new File(s"evaluation_results_detailed_${variantName}.csv")
         val lookahead  = if args.length > 3 then args(3) else "unknown"
         val beamWidth  = if args.length > 4 then args(4) else "unknown"
         val numRuns    = if args.length > 5 then args(5).toInt else 1
         val k_cfa      = if args.length > 6 then args(6).toInt else 0
+        // ML or FIFO variants
         
         val dummyExtractor = new LatticeFeatureBuilder()
         val scorer = new XGBoostScorer(modelDir, dummyExtractor)
@@ -252,105 +255,112 @@ object MLOracleFinder:
             val prog = SchemeParser.parseProgram(Reader.loadFile(file.getPath.nn))
 
             // 1. FIFO Analysis
-            println(s">>>> Testing FIFO Strategy on ${file.getName.nn} ($numRuns runs) <<<")
             var fifoSteps = 0
             var totalFifoTime = 0.0
-            for i <- 0 until numRuns do
-                fifoSteps = 0
-                val fifoAnalysis = new SimpleSchemeModFAnalysis(prog) with SchemeModFKCallSiteSensitivity with SchemeConstantPropagationDomain with SequentialWorklistAlgorithm[SchemeExp] {
-                    val k = k_cfa
-                    override def emptyWorkList = FIFOWorkList.empty
-                    override def step(t: Timeout.T) = { 
-                        super.step(t)
-                        fifoSteps += 1 
-                    }
-                }
-                val startFIFO = System.nanoTime()
-                fifoAnalysis.analyze()
-                val endFIFO = System.nanoTime()
-                val elapsedTime = (endFIFO - startFIFO)
-                totalFifoTime += elapsedTime / 1_000_000.0
-                writerDetailed.println(s"${file.getName().nn},$i,fifo,$fifoSteps,$elapsedTime")
+            if variant.map(_ == "FIFO").getOrElse(false) then
+              println(s">>>> Testing FIFO Strategy on ${file.getName.nn} ($numRuns runs) <<<")
+              for i <- 0 until numRuns do
+                  fifoSteps = 0
+                  val fifoAnalysis = new SimpleSchemeModFAnalysis(prog) with SchemeModFKCallSiteSensitivity with SchemeConstantPropagationDomain with SequentialWorklistAlgorithm[SchemeExp] {
+                      val k = k_cfa
+                      override def emptyWorkList = FIFOWorkList.empty
+                      override def step(t: Timeout.T) = { 
+                          super.step(t)
+                          fifoSteps += 1 
+                      }
+                  }
+                  val startFIFO = System.nanoTime()
+                  fifoAnalysis.analyze()
+                  val endFIFO = System.nanoTime()
+                  val elapsedTime = (endFIFO - startFIFO)
+                  totalFifoTime += elapsedTime / 1_000_000.0
+                  writerDetailed.println(s"${file.getName().nn},$i,fifo,$fifoSteps,$elapsedTime")
 
             writerDetailed.flush()
             
             val fifoTimeMs = totalFifoTime / numRuns
             println(f"FIFO finished in $fifoSteps steps ($fifoTimeMs%.2f ms avg).")
 
-            // 2. ML Analysis
-            println(s">>>> Testing ML on ${file.getName.nn} ($numRuns runs) <<<")
             var steps = 0
             var totalMlTime = 0.0
-            for i <- 0 until numRuns do
-                val extractor = new LatticeFeatureBuilder()
-                steps = 0
-                val wl = new MLGuidedWorkList(extractor, scorer, MLConfig(modelDir))
-                val analysis = new SimpleSchemeModFAnalysis(prog) with SchemeModFKCallSiteSensitivity with SchemeConstantPropagationDomain with SequentialWorklistAlgorithm[SchemeExp] {
-                    val k = k_cfa
-                    val ref = this
-                    override def emptyWorkList = wl
-                    override def step(t: Timeout.T) = { 
-                        wl.currentStep = steps
-                        if !wl.isEmpty then extractor.onIteration(wl, steps) // Update SCCs
-                        super.step(t)
-                        steps += 1 
-                    }
-                    override def spawn(c: SchemeModFComponent) = { extractor.onSpawn(c, steps); super.spawn(c) }
-                    override def intraAnalysis(c: SchemeModFComponent) = new IntraAnalysis(c) with BigStepModFIntra:
-                        override def spawn(callee: SchemeModFComponent) = { extractor.onIntraSpawn(c, callee); super.spawn(callee) }
-                        override def trigger(dep: Dependency) = { 
-                            val value = ref.returnValue(c)
-                            val normalizedTotalLevel = value match
-                                case h: HMap =>
-                                    def calculateProgressionSum(h: HMap): Double =
-                                        var sum = 0.0
-                                        var count = 0
-                                        h.keys.foreach { k =>
-                                            h.getAbstract(k).foreach { v =>
-                                                val lvl = k.lattice.level(v).toDouble
-                                                val toTop = k.lattice.levelToTop(v)
-                                                val progress = if toTop == Int.MaxValue then
-                                                    if lvl <= 0 then 0.0 else 1.0 - (1.0 / (1.0 + math.log(1.0 + lvl)))
-                                                else
-                                                    lvl / (lvl + toTop).toDouble
-                                                sum += progress
-                                                count += 1
-                                            }
-                                        }
-                                        if count == 0 then 0.0 else sum / count
-                                    calculateProgressionSum(h)
-                                case null => 0.0
-                            val consumers = ref.deps.getOrElse(dep, Set())
-                            extractor.onTrigger(c, consumers, steps, normalizedTotalLevel.toFloat)
-                            super.trigger(dep) 
-                        }
-                }
-                val startML = System.nanoTime()
-                analysis.analyze()
-                val endML = System.nanoTime()
-                val elapsedTime = endML - startML
-                totalMlTime += elapsedTime / 1_000_000.0
-                writerDetailed.println(s"${file.getName().nn},$i,ml-L$lookahead-B$beamWidth,$steps,$elapsedTime")
+
+            // 2. ML Analysis
+            if variant.map(_ == "ML").getOrElse(false) then
+              println(s">>>> Testing ML on ${file.getName.nn} ($numRuns runs) <<<")
+              for i <- 0 until numRuns do
+                  val extractor = new LatticeFeatureBuilder()
+                  steps = 0
+                  val wl = new MLGuidedWorkList(extractor, scorer, MLConfig(modelDir))
+                  val analysis = new SimpleSchemeModFAnalysis(prog) with SchemeModFKCallSiteSensitivity with SchemeConstantPropagationDomain with SequentialWorklistAlgorithm[SchemeExp] {
+                      val k = k_cfa
+                      val ref = this
+                      override def emptyWorkList = wl
+                      override def step(t: Timeout.T) = { 
+                          wl.currentStep = steps
+                          if !wl.isEmpty then extractor.onIteration(wl, steps) // Update SCCs
+                          super.step(t)
+                          steps += 1 
+                      }
+                      override def spawn(c: SchemeModFComponent) = { extractor.onSpawn(c, steps); super.spawn(c) }
+                      override def intraAnalysis(c: SchemeModFComponent) = new IntraAnalysis(c) with BigStepModFIntra:
+                          override def spawn(callee: SchemeModFComponent) = { extractor.onIntraSpawn(c, callee); super.spawn(callee) }
+                          override def trigger(dep: Dependency) = { 
+                              val value = ref.returnValue(c)
+                              val normalizedTotalLevel = value match
+                                  case h: HMap =>
+                                      def calculateProgressionSum(h: HMap): Double =
+                                          var sum = 0.0
+                                          var count = 0
+                                          h.keys.foreach { k =>
+                                              h.getAbstract(k).foreach { v =>
+                                                  val lvl = k.lattice.level(v).toDouble
+                                                  val toTop = k.lattice.levelToTop(v)
+                                                  val progress = if toTop == Int.MaxValue then
+                                                      if lvl <= 0 then 0.0 else 1.0 - (1.0 / (1.0 + math.log(1.0 + lvl)))
+                                                  else
+                                                      lvl / (lvl + toTop).toDouble
+                                                  sum += progress
+                                                  count += 1
+                                              }
+                                          }
+                                          if count == 0 then 0.0 else sum / count
+                                      calculateProgressionSum(h)
+                                  case null => 0.0
+                              val consumers = ref.deps.getOrElse(dep, Set())
+                              extractor.onTrigger(c, consumers, steps, normalizedTotalLevel.toFloat)
+                              super.trigger(dep) 
+                          }
+                  }
+                  val startML = System.nanoTime()
+                  analysis.analyze()
+                  val endML = System.nanoTime()
+                  val elapsedTime = endML - startML
+                  totalMlTime += elapsedTime / 1_000_000.0
+                  writerDetailed.println(s"${file.getName().nn},$i,ml-L$lookahead-B$beamWidth,$steps,$elapsedTime")
 
             writerDetailed.flush()
             
             val mlTimeMs = totalMlTime / numRuns
             
-            println(f"ML finished in $steps steps ($mlTimeMs%.2f ms avg).")
-            val ratio = steps.toDouble / fifoSteps
-            val overhead = (mlTimeMs / steps) / (fifoTimeMs / fifoSteps)
-            println(f"Ratio (ML/FIFO Steps): $ratio%.3f")
-            println(f"TPI Overhead Factor: $overhead%.2fx")
-            println("-" * 40)
-            
-            import java.util.Locale
-            val ratioStr = String.format(Locale.US, "%.4f", ratio)
-            val fifoTimeStr = String.format(Locale.US, "%.2f", fifoTimeMs)
-            val mlTimeStr = String.format(Locale.US, "%.2f", mlTimeMs)
-            val overheadStr = String.format(Locale.US, "%.2f", overhead)
-            
-            writer.println(s"${file.getName.nn},$lookahead,$beamWidth,$fifoSteps,$steps,$ratioStr,$fifoTimeStr,$mlTimeStr,$overheadStr")
-            writer.flush()
+            if variant.map(_ == "ML").getOrElse(false) then
+              println(f"ML finished in $steps steps ($mlTimeMs%.2f ms avg).")
+
+            // Only if both variants have been executed should we output a comparison
+            if variant.isEmpty then
+              val ratio = steps.toDouble / fifoSteps
+              val overhead = (mlTimeMs / steps) / (fifoTimeMs / fifoSteps)
+              println(f"Ratio (ML/FIFO Steps): $ratio%.3f")
+              println(f"TPI Overhead Factor: $overhead%.2fx")
+              println("-" * 40)
+              
+              import java.util.Locale
+              val ratioStr = String.format(Locale.US, "%.4f", ratio)
+              val fifoTimeStr = String.format(Locale.US, "%.2f", fifoTimeMs)
+              val mlTimeStr = String.format(Locale.US, "%.2f", mlTimeMs)
+              val overheadStr = String.format(Locale.US, "%.2f", overhead)
+              
+              writer.println(s"${file.getName.nn},$lookahead,$beamWidth,$fifoSteps,$steps,$ratioStr,$fifoTimeStr,$mlTimeStr,$overheadStr")
+              writer.flush()
         }
         writer.close()
         writerDetailed.close()
