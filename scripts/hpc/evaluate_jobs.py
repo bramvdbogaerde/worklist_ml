@@ -36,7 +36,7 @@ for config in configurations:
     # Generate a FIFO job for this configuration
     jobname = f"lattice_l{config['l']}_b{config['b']}_k{config['k']}_fifo"
     model_dir = f"lattice_l{config['l']}_b{config['b']}_k{config['k']}_all"
-    job = utils.job_template("evaluate", None, data_suffix = f"_all", k=config['k'], l=config['l'], b=config['b'], strategy="fifo", model_dir="../models/"+model_dir, rename_jar=True)
+    job = utils.job_template("evaluate", None, data_suffix = f"_all", k=config['k'], l=config['l'], b=config['b'], strategy="FIFO", model_dir="../models/"+model_dir, rename_jar=True)
 
     print(f"[*] Writing job {jobname}")
     with open(JOB_DIR / (jobname+".sh"), "w") as f: 
