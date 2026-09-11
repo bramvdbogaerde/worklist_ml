@@ -36,6 +36,7 @@ for i, dir in enumerate(dirs, 1):
             jobname = dir + "_" + str(k) + "_" + strategy
             job = f"""#!/bin/bash
 #SBATCH --cpus-per-task=1
+#SBATCH --hint=multithread
 
 java -jar maf/build/compare-worklist.jar --k {k} --strategy {strategy} --output output/compare_worklist_{i}_{k}_{strategy}.csv val_split/{dir}
 """
