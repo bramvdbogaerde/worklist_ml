@@ -192,3 +192,4 @@ models_old
 data_old
 logs
 .bsp
+output/
