@@ -257,7 +257,7 @@ object MLOracleFinder:
             // 1. FIFO Analysis
             var fifoSteps = 0
             var totalFifoTime = 0.0
-            if variant.map(_ == "FIFO").getOrElse(false) then
+            if variant.map(_ == "FIFO").getOrElse(true) then
               println(s">>>> Testing FIFO Strategy on ${file.getName.nn} ($numRuns runs) <<<")
               for i <- 0 until numRuns do
                   fifoSteps = 0
@@ -285,7 +285,7 @@ object MLOracleFinder:
             var totalMlTime = 0.0
 
             // 2. ML Analysis
-            if variant.map(_ == "ML").getOrElse(false) then
+            if variant.map(_ == "ML").getOrElse(true) then
               println(s">>>> Testing ML on ${file.getName.nn} ($numRuns runs) <<<")
               for i <- 0 until numRuns do
                   val extractor = new LatticeFeatureBuilder()

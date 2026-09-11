@@ -8,7 +8,10 @@ import maf.util.benchmarks.Timeout
 import scala.collection.mutable.PriorityQueue
 import maf.modular.Dependency
 
-trait SequentialWorklistAlgorithm[Expr <: Expression] extends ModAnalysis[Expr]:
+trait WorklistAlgorithm[Expr <: Expression] extends ModAnalysis[Expr]: 
+  def step(timeout: Timeout.T): Unit
+
+trait SequentialWorklistAlgorithm[Expr <: Expression] extends ModAnalysis[Expr] with WorklistAlgorithm[Expr]:
     // we can choose what kind of worklist to pick
     def emptyWorkList: WorkList[Component]
     // adding elements to the worklist
@@ -29,7 +32,7 @@ trait SequentialWorklistAlgorithm[Expr <: Expression] extends ModAnalysis[Expr]:
     def finished: Boolean = workList.isEmpty
     // a single step in the worklist algorithm iteration
     // var intraCount: Long = 0L
-    def step(timeout: Timeout.T): Unit =
+    override def step(timeout: Timeout.T): Unit =
         // take the next component
         val current = workList.head
         val currentCount: Int = reAnalysisMap.getOrElse(current, 0)
@@ -72,7 +75,7 @@ trait RandomWorklistAlgorithm[Expr <: Expression] extends SequentialWorklistAlgo
     override def configString(): String = super.configString() + "\n  using a random work list"
 
 // TODO: use an immutable priority queue, or reuse SequentialWorklistAlgorithm differently here
-trait PriorityQueueWorklistAlgorithm[Expr <: Expression] extends ModAnalysis[Expr]:
+trait PriorityQueueWorklistAlgorithm[Expr <: Expression] extends ModAnalysis[Expr] with WorklistAlgorithm[Expr]:
     // choose the priority ordering of components
     implicit lazy val ordering: Ordering[Component]
     // worklist is a priority queue
@@ -89,7 +92,7 @@ trait PriorityQueueWorklistAlgorithm[Expr <: Expression] extends ModAnalysis[Exp
     def addToWorkList(cmp: Component): Unit = push(cmp)
     def finished: Boolean = worklist.isEmpty
     // a single step in the worklist algorithm iteration
-    def step(timeout: Timeout.T): Unit =
+    override def step(timeout: Timeout.T): Unit =
         // take the next component
         val current = pop()
         // do the intra-analysis
