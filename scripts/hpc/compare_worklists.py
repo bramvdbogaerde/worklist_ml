@@ -37,7 +37,7 @@ for i, dir in enumerate(dirs, 1):
             job = f"""#!/bin/bash
 #SBATCH --cpus-per-task=1
 
-java -jar maf/build/compare-worklist.jar --k {k} --strategy {strategy} --output output/compare_worklist_{i}_{k}_{strategy}.csv {dir}
+java -jar maf/build/compare-worklist.jar --k {k} --strategy {strategy} --output output/compare_worklist_{i}_{k}_{strategy}.csv val_split/{dir}
 """
             print(f"[*] Writing job {jobname}")
             with open(JOB_DIR / (jobname+".sh"), "w") as f: 
