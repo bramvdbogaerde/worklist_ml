@@ -1,4 +1,4 @@
 #!/bin/bash
 #SBATCH --exclusive
 
-java -jar maf/build/compare-worklist/compare-worklist.jar --k 0 --strategy deepExpressionFirst --output output_full/output_0_deepExpressionFirst_pico.scm.csv --reps 40 val/pico.scm
+java -jar maf/build/compare-worklist.jar --k 0 --strategy deepExpressionFirst --output output_full/output_0_deepExpressionFirst_pico.scm.csv --reps 40 val/pico.scm
