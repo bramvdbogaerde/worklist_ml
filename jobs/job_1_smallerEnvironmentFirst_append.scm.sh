@@ -1,4 +1,4 @@
 #!/bin/bash
 #SBATCH --exclusive
 
-java -jar maf/build/compare-worklist/jar --k 1 --strategy smallerEnvironmentFirst --output output_full/output_1_smallerEnvironmentFirst_append.scm.csv --reps 40 val/append.scm
+java -jar maf/build/compare-worklist/compare_worklist.jar --k 1 --strategy smallerEnvironmentFirst --output output_full/output_1_smallerEnvironmentFirst_append.scm.csv --reps 40 val/append.scm

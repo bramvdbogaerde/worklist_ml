@@ -1,4 +1,4 @@
 #!/bin/bash
 #SBATCH --exclusive
 
-java -jar maf/build/compare-worklist/jar --k 1 --strategy LIFO --output output_full/output_1_LIFO_easter.scm.csv --reps 40 val/easter.scm
+java -jar maf/build/compare-worklist/compare_worklist.jar --k 1 --strategy LIFO --output output_full/output_1_LIFO_easter.scm.csv --reps 40 val/easter.scm
