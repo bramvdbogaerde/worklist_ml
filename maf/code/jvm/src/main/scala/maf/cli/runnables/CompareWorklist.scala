@@ -82,6 +82,7 @@ object CompareWorklist:
       k: Int = 0,
       program: Option[String] = None,
       strategy: Option[String] = None,
+      reps: Int = 1,
       output: Option[String] = None
     ) {
       def toOptions(): Options = 
@@ -89,11 +90,12 @@ object CompareWorklist:
           k = k, 
           program = program.getOrElse(invalidArgument("program has not been specified")),
           strategy = strategy,
-          output = output
+          output = output,
+          reps = reps
         )
     }
 
-    case class Options(k: Int, program: String, strategy: Option[String], output: Option[String])
+    case class Options(k: Int, program: String, strategy: Option[String], output: Option[String], reps: Int)
 
     def invalidArgument[T](msg: String): T = 
       println(s"Failed to parse arguments: $msg")
@@ -133,6 +135,11 @@ object CompareWorklist:
             parsedArgs = parsedArgs.copy(output = Some(head))
             argList = argList.tail
 
+          case "--reps" => 
+            val head = argList.headOption.getOrElse(invalidArgument("no value for --reps specified"))
+            parsedArgs = parsedArgs.copy(reps = Try(head.toInt).toOption.getOrElse(invalidArgument("expected number for --reps")))
+            argList = argList.tail
+
           case program => 
             parsedArgs = parsedArgs.copy(program = Some(program))
         }
@@ -157,15 +164,17 @@ object CompareWorklist:
       // output selection
       val output: PrintWriter = options.output.map((name: String) => new PrintWriter(new FileWriter(new File(name), false), true)).getOrElse(new PrintWriter(System.out, true))
 
-      output.println("benchmark,strategy,k,iterations,time")
+      output.println("benchmark,strategy,k,iterations,time,rep")
       for benchmark <- benchmarks do {
           val program = SchemeParser.parseProgram(Reader.loadFile(benchmark.toString))
           for strategy <- strategies do {
-            println(s"Running $strategy on ${benchmark.getFileName()}")
-            val anl = analyses(strategy)(program, options.k)
-            val (ellapsed_time, _) = Timer.time(anl.analyze())
-            output.println(s"${benchmark.getFileName()},$strategy,${options.k},${anl.steps},$ellapsed_time")
-            output.flush()
+            for iter <- 1 to options.reps do {
+              println(s"Running $strategy on ${benchmark.getFileName()} $iter/${options.reps}")
+              val anl = analyses(strategy)(program, options.k)
+              val (ellapsed_time, _) = Timer.time(anl.analyze())
+              output.println(s"${benchmark.getFileName()},$strategy,${options.k},${anl.steps},$ellapsed_time,$iter")
+              output.flush()
+            }
           }
       }
         
