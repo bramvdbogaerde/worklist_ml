@@ -1,4 +1,4 @@
 #!/bin/bash
 #SBATCH --exclusive
 
-java -jar maf/build/compare-worklist/compare_worklist.jar --k 0 --strategy LIFO --output output_full/output_0_LIFO_bound-precision.scm.csv --reps 40 val/bound-precision.scm
+java -jar maf/build/compare-worklist/compare-worklist.jar --k 0 --strategy LIFO --output output_full/output_0_LIFO_bound-precision.scm.csv --reps 40 val/bound-precision.scm

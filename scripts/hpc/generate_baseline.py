@@ -15,7 +15,7 @@ for (_, row) in df[["benchmark", "k", "strategy"]].iterrows():
     s = f"""#!/bin/bash
 #SBATCH --exclusive
 
-java -jar maf/build/compare-worklist/compare_worklist.jar --k {k} --strategy {strategy} --output output_full/output_{k}_{strategy}_{benchmark}.csv --reps 40 {filepath}
+java -jar maf/build/compare-worklist/compare-worklist.jar --k {k} --strategy {strategy} --output output_full/output_{k}_{strategy}_{benchmark}.csv --reps 40 {filepath}
 """
 
     with open(f"jobs/job_{k}_{strategy}_{benchmark}.sh", "w") as f: 
